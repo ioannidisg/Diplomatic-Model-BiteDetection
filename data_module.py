@@ -199,10 +199,7 @@ class WindowsDataModule:
                 if self.raw_test_acc is None:
                     self.raw_test_acc = acc_shift
                 else:
-                    self.raw_test_acc = np.vstack([self.raw_test_acc, acc_shift])
-
-
-            
+                    self.raw_test_acc = np.vstack([self.raw_test_acc, acc_shift])            
 
                 if self.timestamps_test is None:
                     self.timestamps_test = ts_shift
