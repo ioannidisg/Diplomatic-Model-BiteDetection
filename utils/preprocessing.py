@@ -7,15 +7,7 @@ from sklearn.preprocessing import StandardScaler
 # 1) Filters only (NO scaling, NO windowing)
 # ---------------------------
 def apply_filters(acc_data, l_ma=25, f_c=1.0, l_hp=513, fs=100):
-    """
-    Εφαρμόζει:
-      - axis invert (ax *= -1)
-      - moving average smoothing
-      - FIR low-pass & high-pass (gravity split)
-    Επιστρέφει:
-      low_filtered:  (N,3)
-      high_filtered: (N,3)
-    """
+
     data = np.asarray(acc_data, dtype=np.float32).copy()
 
     # Axis invert (όπως είχες)
@@ -41,17 +33,11 @@ def apply_filters(acc_data, l_ma=25, f_c=1.0, l_hp=513, fs=100):
     return low_filtered, high_filtered
 
 
-# ---------------------------
 # 2) Labeling (paper-style window_end within ±epsilon of bite_end)
-# ---------------------------
+
 def extract_y(timestamps_eff, window_size, bite_intervals, window_starts,
               epsilon=0.6):
-    """
-    Paper-style:
-      positive iff window END is within ±epsilon of a BITE END.
-    timestamps_eff: timestamps after delay correction.
-    epsilon default: 1.25s (λειτουργικό για stride=250 @100Hz)
-    """
+
     n_windows = len(window_starts)
     y = np.zeros(n_windows, dtype=int)
 
@@ -69,27 +55,12 @@ def extract_y(timestamps_eff, window_size, bite_intervals, window_starts,
     return y
 
 
-# ---------------------------
-# 3) Full preprocessing (filters -> scaling -> windowing -> labels)
-# ---------------------------
 def preprocess_acc_data(acc_data, timestamps, bite_intervals,
                         window_size=500, stride=250,
                         scaler_params=None,
                         epsilon=1,
                         l_ma=25, f_c=1.0, l_hp=513, fs=100):
-    """
-    acc_data: (N,3) raw [ax,ay,az]
-    timestamps: (N,) seconds
-    scaler_params: dict with mean/scale for low/high (train-only global stats)
-      {
-        "mean_low":  (3,), "scale_low":  (3,),
-        "mean_high": (3,), "scale_high": (3,)
-      }
-    Returns:
-      X: (num_windows, window_size, 6)
-      y: (num_windows,)
-      window_starts: list[int]
-    """
+
 
     acc_data = np.asarray(acc_data, dtype=np.float32)
     timestamps = np.asarray(timestamps, dtype=np.float32)
@@ -117,7 +88,7 @@ def preprocess_acc_data(acc_data, timestamps, bite_intervals,
 
     acc_scaled = np.concatenate([acc_low, acc_high], axis=1).astype(np.float32)  # (N,6)
 
-    # 3) Windowing
+    #  Windowing
     X = []
     window_starts = []
     n = len(acc_scaled)
@@ -130,11 +101,10 @@ def preprocess_acc_data(acc_data, timestamps, bite_intervals,
 
     X = np.stack(X, axis=0).astype(np.float32)
 
-    # 4) Delay correction (FIR linear-phase approx group delay)
+    #  Delay correction (FIR linear-phase approx group delay)
     delay_samples = (l_hp - 1) // 2
     timestamps_eff = timestamps - np.float32(delay_samples / fs)
 
-    # 5) Labels
     y = extract_y(
         timestamps_eff=timestamps_eff,
         window_size=window_size,
