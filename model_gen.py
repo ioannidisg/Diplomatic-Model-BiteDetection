@@ -274,7 +274,7 @@ def train_full():
     print("\n=== TRAIN PROBABILITY DISTRIBUTION ===")
     stats("TRAIN POS (y=1)", pos_tr)
     stats("TRAIN NEG (y=0)", neg_tr)
-
+    # Πλέον χρησιμοποιώ την clustermax και οχι postprocess_predictions!!
     # y_bin = postprocess_predictions(
     #     y_pred,
     #     threshold=0.89,
