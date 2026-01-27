@@ -300,35 +300,6 @@ def train_full():
         fs=100
     )
 
-    # ================= DEBUG: VISUAL CHECK =================
-    # if len(detected_intervals) > 0:
-    #     t_det = detected_intervals[0][1]  # end time of first detected event
-    #     T = 6.0  # seconds around event
-    #
-    #     mask = (dm.timestamps_test >= t_det - T) & (dm.timestamps_test <= t_det + T)
-    #
-    #     ts = dm.timestamps_test[mask]
-    #
-    #     # raw acc magnitude (πρέπει να έχει ίδιο μήκος με timestamps_test)
-    #     acc = dm.raw_test_acc[mask]  # shape (N,3)
-    #     acc_mag = np.linalg.norm(acc, axis=1)
-    #
-    #     plt.figure(figsize=(10, 4))
-    #     plt.plot(ts, acc_mag, label="acc magnitude")
-    #
-    #     # detected event
-    #     plt.axvline(t_det, color="red", linestyle="--", label="Detected")
-    #
-    #     # GT bites κοντά
-    #     for (_, gt_end) in dm.ground_truth_test:
-    #         if abs(gt_end - t_det) <= T:
-    #             plt.axvline(gt_end, color="green", linestyle="--", label="GT bite end")
-    #
-    #     plt.legend()
-    #     plt.title("Local check: detected vs GT")
-    #     plt.show()
-    # # =======================================================
-
 
     print("=== TIME AXIS CHECK ===")
     drops = np.where(np.diff(dm.timestamps_test) < 0)[0]
@@ -477,9 +448,7 @@ def train_LOSO():
 import numpy as np
 
 def postprocess_predictions(y_pred, threshold=0.5, min_distance_sec=2.0, stride=250, fs=100):
-    """
-    Plateau-safe local maxima + keep-strongest within refractory window.
-    """
+  
     p = y_pred.reshape(-1).astype(float)
 
     # 1) thresholding
