@@ -58,17 +58,7 @@ def extract_detected_times_clustermax(
     K=2,
     debug=False
 ):
-    """
-    Build detected intervals from per-window probabilities using:
-      1) thresholding (p >= threshold)
-      2) clustering consecutive above-threshold windows
-      3) sampling inside each cluster every K windows (NOT 1 per cluster)
-      4) optional refractory on event times (min_distance_sec)
 
-    Returns: list of (t_start, t_end) intervals in seconds (timestamps units).
-    """
-
-    # --- sanitize inputs ---
     p = np.asarray(probs).reshape(-1).astype(np.float64)
     ws = np.asarray(window_starts, dtype=np.int64)
 
@@ -76,7 +66,6 @@ def extract_detected_times_clustermax(
     p = p[:n]
     ws = ws[:n]
 
-    # --- threshold mask ---
     keep_mask = (p >= float(threshold))
     idxs = np.flatnonzero(keep_mask)
     # An prob < threshold την πετάει
