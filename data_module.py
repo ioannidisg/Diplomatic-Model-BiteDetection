@@ -202,19 +202,7 @@ class WindowsDataModule:
                     self.raw_test_acc = np.vstack([self.raw_test_acc, acc_shift])
 
 
-                print("\n=== OFFSET DEBUG (ONE SESSION) ===")
-                print("Original timestamps   :", s["ts"][0], "→", s["ts"][-1])
-                print("Shifted timestamps    :", ts_shift[0], "→", ts_shift[-1])
-
-                if len(s["bites"]) > 0:
-                    print("Original bite GT      :", s["bites"][0])
-                    print("Shifted bite GT       :", bites_shift[0])
-                    print("Difference (seconds)  :", bites_shift[0] - s["bites"][0])
-                else:
-                    print("No bites in this session")
-
-                print("Time offset applied", time_offset)
-                print("==============================\n")
+            
 
                 if self.timestamps_test is None:
                     self.timestamps_test = ts_shift
