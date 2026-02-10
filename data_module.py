@@ -14,13 +14,9 @@ class WindowsDataModule:
         self.batch_size = 64
         self.window_size = 500
 
-        # ✅ LOCKED STRIDES (per your request)
-        # fs = 100 Hz  ->  stride=5  => 0.05s  (FIC)
-        # fs = 100 Hz  ->  stride=100=> 1.0s   (FreeFIC)
         self.stride_fic = 5
         self.stride_freefic = 100
 
-        # keep for backward-compatibility with older code (treat as FIC stride)
         self.stride = self.stride_fic
 
         self.sensor_type = "acc"
@@ -39,15 +35,12 @@ class WindowsDataModule:
     def setup(self, stage=None, split="global_by_session", test_ratio=0.2, seed=42):
         rng = np.random.RandomState(seed)
 
-        # =========================
-        # FILTER CONSTANTS (for consistent filters + ts_eff delay)
-        # =========================
         fs = self.fs
         l_hp = 513
         delay_samples = (l_hp - 1) // 2
         delay_sec = delay_samples / fs
 
-        # 1) Load FIC
+        #  Load FIC
         with open(self.pkl_path, "rb") as fh:
             dataset = pkl.load(fh)
 
@@ -55,7 +48,6 @@ class WindowsDataModule:
         bite_gt = dataset["bite_gt"]
         subject_ids = dataset.get("subject_id", None)
 
-        # 2) Collect Eligible Sessions (metadata only)
         sessions = []
         for i, session in enumerate(raw_data):
             acc_full = session[self.sensor_type]
@@ -71,7 +63,7 @@ class WindowsDataModule:
                 "bites": bites
             })
 
-        # 3) Split Train/Test indices
+        #  Split Train/Test indices
         if split == "per_subject" and subject_ids is not None:
             subj2idx = defaultdict(list)
             for s in sessions:
@@ -88,13 +80,12 @@ class WindowsDataModule:
             rng.shuffle(idxs)
             n_test = max(1, int(np.ceil(len(idxs) * test_ratio)))
             test_idx = set(idxs[:n_test])
-
-        # 4) Scaler stats (Train-only FIC) + (Optional) FreeFIC (sid<=14)
+            
         print("🔄 Calculating Scaler Stats...")
         scaler_low = StandardScaler()
         scaler_high = StandardScaler()
 
-        # --- FIC train only ---
+        # FIC train only 
         for s in sessions:
             if s["idx"] in test_idx:
                 continue
@@ -105,14 +96,14 @@ class WindowsDataModule:
             scaler_low.partial_fit(low)
             scaler_high.partial_fit(high)
 
-        # --- Load FreeFIC once (used also below) ---
+        
         with open(self.freefic_path, "rb") as fh:
             freefic = pkl.load(fh)
 
         free_raw = freefic["signals_raw"]
         free_subject_ids = freefic.get("subject_id", None)
 
-        # FreeFIC scaling: include only training subjects (sid<=14), skip held-out (sid>=15)
+        
         for i, sess in enumerate(free_raw):
             sid = int(free_subject_ids[i]) if free_subject_ids is not None else None
             if sid is not None and sid >= 15:
@@ -134,7 +125,7 @@ class WindowsDataModule:
         }
         print("✅ Scaler ready.")
 
-        # 5) Build TRAIN (Lazy) & TEST (Lazy) session dicts
+        # Build TRAIN (Lazy) & TEST (Lazy) session dicts
         self.train_sessions = []
         self.test_sessions = []
 
@@ -142,9 +133,7 @@ class WindowsDataModule:
 
         print("🔨 Processing Sessions (Applying Filters & Lazy Setup)...")
 
-        # =========================
-        # FIC LOOP
-        # =========================
+        # FIC LOOP        
         for i, session in enumerate(raw_data):
             acc_full = session[self.sensor_type]
             ts = acc_full[:, 0]
@@ -161,10 +150,10 @@ class WindowsDataModule:
                 "idx": i,
                 "ts": ts,
                 "ts_eff": ts_eff,
-                "signal_raw": sensors.astype(np.float32),  # ⬅️ ΠΡΟΣΘΗΚΗ
+                "signal_raw": sensors.astype(np.float32),  
                 "signal_low": low,
                 "signal_high": high,
-                "events": bites,          # FIC: BITES (end timestamps used later)
+                "events": bites,          
                 "type": "fic",
                 "time_offset": 0.0,
                 "test_offset": 0
@@ -191,9 +180,8 @@ class WindowsDataModule:
                 # === FIC TRAIN ===
                 self.train_sessions.append(s_dict)
 
-        # =========================
-        # FreeFIC LOOP (Negatives to Train, Held-out to Test)
-        # =========================
+        
+        # FreeFIC LOOP 
         free_meal_gt = freefic["meal_gt"]
         free_ids = freefic.get("subject_id", None)
 
@@ -216,10 +204,10 @@ class WindowsDataModule:
                 "idx": f"free_{i}",
                 "ts": ts,
                 "ts_eff": ts_eff,
-                "signal_raw": sensors.astype(np.float32),  # ⬅️ ΠΡΟΣΘΗΚΗ
+                "signal_raw": sensors.astype(np.float32),  
                 "signal_low": low,
                 "signal_high": high,
-                "events": meals,          # FreeFIC: MEALS intervals
+                "events": meals,          
                 "type": "freefic",
                 "time_offset": 0.0,
                 "test_offset": 0
