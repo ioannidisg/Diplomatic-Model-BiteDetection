@@ -15,8 +15,8 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
         scaler_params,
         epsilon,
         ratio=1,
-        stride_freefic=None,    # FreeFIC stride (if None -> uses `stride`)
-        steps_per_epoch=None,   # optional override of epoch length
+        stride_freefic=None,    # FreeFIC stride 
+        steps_per_epoch=None,   
         seed=42
 
     ):
@@ -47,9 +47,7 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
             f"Ratio=1:{self.ratio}, steps_per_epoch={self.steps_per_epoch}"
         )
 
-        # -------------------------
-        # SCANNING (build index lists)
-        # -------------------------
+        # SCANNING 
         for sess_idx, s in enumerate(self.sessions):
             if "signal_low" not in s:
                 continue
@@ -71,13 +69,11 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
                     self.neg_indices.append((sess_idx, int(w), 0))
                 continue
 
-            # Use window END timestamp for labeling
             ts_eff = s["ts_eff"]
             t_ends = ts_eff[window_starts + (self.window_size - 1)]
 
             if s_type == "freefic":
-                # FreeFIC: keep only NEG windows whose end is NOT inside any meal interval
-                # events are intervals [start, end]
+                # FreeFIC: keep only NEG 
                 ev_starts = events[:, 0] - delay
                 ev_ends = events[:, 1] - delay
 
@@ -109,9 +105,7 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
         # POS permutation for (mostly) non-replacement sampling within an epoch
         self._reset_pos_perm()
 
-    # -------------------------
     # Keras Sequence API
-    # -------------------------
     def __len__(self):
         if self.steps_per_epoch is not None:
             return self.steps_per_epoch
@@ -130,7 +124,7 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
         # POS: take a slice from a shuffled permutation (wrap if needed)
         pos_sel = self._take_pos(n_pos)
 
-        # NEG: random sampling (with replacement)
+        # NEG: random sampling
         neg_sel_idx = self.rng.randint(0, len(self.neg_indices), size=n_neg)
         neg_sel = self.neg_indices[neg_sel_idx]
 
@@ -147,15 +141,12 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
 
             s = self.sessions[sess_idx]
 
-            # ✅ παίρνεις έτοιμα φιλτραρισμένα σήματα από datamodule
             low_seq = s["signal_low"][w_start:w_end].astype(np.float32)  # (T,3)
             high_seq = s["signal_high"][w_start:w_end].astype(np.float32)  # (T,3)
 
-            # ✅ ίδια rotation σε low/high (χωρίς refilter)
             low_seq, Q = self.rotate_raw_acc(low_seq)
             high_seq = (high_seq @ Q.T).astype(np.float32)
 
-            # normalize with global scalers
             low_norm = (low_seq - self.mean_low) / (self.scale_low + 1e-8)
             high_norm = (high_seq - self.mean_high) / (self.scale_high + 1e-8)
 
@@ -164,9 +155,7 @@ class BalancedWindowSequence(tf.keras.utils.Sequence):
 
         return X_batch, y_batch
 
-    # -------------------------
-    # Internal helpers
-    # -------------------------
+    #  helpers
     def _reset_pos_perm(self):
         self.pos_perm = np.arange(len(self.pos_indices), dtype=np.int64)
         self.rng.shuffle(self.pos_perm)
