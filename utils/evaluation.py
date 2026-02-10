@@ -1,4 +1,110 @@
 import numpy as np
+from scipy.signal import find_peaks
+
+
+import numpy as np
+from scipy.signal import find_peaks
+
+import numpy as np
+
+def extract_detected_times_paper_localmax_2(
+    probs,
+    window_starts,
+    timestamps,
+    window_size,
+    threshold=0.89,
+    min_distance_sec=2.0,
+    stride=5,
+    fs=100.0,
+    K=1,
+):
+    # Align lengths
+    p = np.asarray(probs).reshape(-1).astype(np.float64)
+    ws = np.asarray(window_starts, dtype=np.int64)
+    n = min(len(p), len(ws))
+    p = p[:n]
+    ws = ws[:n]
+
+    # t_end per window (end timestamp of each window)
+    ts = np.asarray(timestamps, dtype=np.float64)
+    end_idx = ws + (window_size - 1)
+    valid = (end_idx >= 0) & (end_idx < len(ts))
+
+    p = p[valid]
+    end_idx = end_idx[valid]
+    t_end = ts[end_idx]
+
+    # 1) thresholding exactly like paper: replace with zeros
+    p_thr = p.copy()
+    p_thr[p_thr < threshold] = 0.0
+
+    if K > 1:
+        m = (p_thr > 0.0)  # boolean mask above threshold
+        keep = np.zeros_like(m, dtype=bool)
+
+        # find runs of True in m
+        i = 0
+        L = len(m)
+        while i < L:
+            if not m[i]:
+                i += 1
+                continue
+            j = i
+            while j < L and m[j]:
+                j += 1
+            # run is [i, j)
+            if (j - i) >= K:
+                keep[i:j] = True
+            i = j
+
+        p_thr = p_thr * keep.astype(np.float64)
+
+    # 2local maxima with min distance 2 sec
+    frame_rate = fs / stride  # windows per second
+    distance = max(1, int(np.ceil(min_distance_sec * frame_rate)))
+    peaks, _ = find_peaks(p_thr, distance=distance)
+
+    # output: bite timestamps
+    bite_times = t_end[peaks]
+    return bite_times
+
+def extract_detected_times_paper_localmax(
+    probs,
+    window_starts,
+    timestamps,
+    window_size,
+    threshold=0.89,
+    min_distance_sec=2.0,
+    stride=5,
+    fs=100.0
+):
+    p = np.asarray(probs).reshape(-1).astype(np.float64)
+    ws = np.asarray(window_starts, dtype=np.int64)
+    n = min(len(p), len(ws))
+    p = p[:n]
+    ws = ws[:n]
+
+    # t_end per window (end timestamp of each window)
+    ts = np.asarray(timestamps, dtype=np.float64)
+    end_idx = ws + (window_size - 1)
+    valid = (end_idx >= 0) & (end_idx < len(ts))
+
+    p = p[valid]
+    end_idx = end_idx[valid]
+    t_end = ts[end_idx]
+    
+    #  thresholding  like paper
+    p_thr = p.copy()
+    p_thr[p_thr < threshold] = 0.0
+
+    #  local maxima with min distance 2 sec
+    frame_rate = fs / stride  # windows per second
+    distance = max(1, int(np.ceil(min_distance_sec * frame_rate)))
+    peaks, _ = find_peaks(p_thr, distance=distance)
+
+    bite_times = t_end[peaks]
+    return bite_times
+
 
 def extract_detected_times(y_pred_bin, window_starts, timestamps, window_size):
     detected_times = []
@@ -44,7 +150,89 @@ def calculate_f1_custom(detected_intervals, ground_truth_intervals, epsilon=0.2)
 
     return f1
 
-    import numpy as np
+
+
+import numpy as np
+from scipy.signal import find_peaks
+from scipy.signal import find_peaks
+import numpy as np
+
+def extract_bites_paper_style(probs, t_end, threshold=0.89, min_distance_sec=2.0, stride=5, fs=100.0):
+    p = np.asarray(probs).reshape(-1).astype(np.float64)
+    ws = np.asarray(window_starts, dtype=np.int64)
+    n = min(len(p), len(ws))
+    p = p[:n]
+    ws = ws[:n]
+
+    # t_end per window (end timestamp of each window)
+    ts = np.asarray(timestamps, dtype=np.float64)
+    end_idx = ws + (window_size - 1)
+    valid = (end_idx >= 0) & (end_idx < len(ts))
+
+    p = p[valid]
+    end_idx = end_idx[valid]
+    t_end = ts[end_idx]
+
+    # 1) thresholding exactly like paper: replace with zeros
+    p_thr = p.copy()
+    p_thr[p_thr < threshold] = 0.0
+
+    # 2) local maxima with min distance 2 sec
+    frame_rate = fs / stride  # windows per second
+    distance = max(1, int(np.ceil(min_distance_sec * frame_rate)))
+    peaks, _ = find_peaks(p_thr, distance=distance)
+
+    # 3) output: bite timestamps (or convert to intervals if your code expects intervals)
+    bite_times = t_end[peaks]
+    return bite_times
+
+def extract_detected_times_localmax(
+    probs,
+    window_starts,
+    timestamps,
+    window_size,
+    threshold=0.9,
+    min_distance_sec=5.0,
+    stride=125,
+    fs=100,
+    debug=False
+):
+  
+    probs = np.asarray(probs).reshape(-1)
+    ws = np.asarray(window_starts, dtype=int)
+
+    n = min(len(probs), len(ws))
+    probs = probs[:n]
+    ws = ws[:n]
+
+    frame_rate = fs / stride              # windows per second
+    min_distance_frames = int(min_distance_sec * frame_rate)
+
+    peaks, props = find_peaks(
+        probs,
+        height=threshold,
+        distance=max(1, min_distance_frames)
+    )
+
+    if debug:
+        print(f"[DEBUG] peaks found: {len(peaks)} (threshold={threshold}, min_dist={min_distance_sec}s)")
+
+    # --- build detected intervals ---
+    detected_intervals = []
+    ts = np.asarray(timestamps)
+
+    for p in peaks:
+        start_idx = ws[p]
+        end_idx = start_idx + window_size - 1
+
+        if start_idx < 0 or end_idx >= len(ts):
+            continue
+
+        detected_intervals.append(
+            (float(ts[start_idx]), float(ts[end_idx]))
+        )
+
+    return detected_intervals
 
 def extract_detected_times_clustermax(
     probs,
@@ -58,7 +246,17 @@ def extract_detected_times_clustermax(
     K=2,
     debug=False
 ):
+    """
+    Build detected intervals from per-window probabilities using:
+      1) thresholding (p >= threshold)
+      2) clustering consecutive above-threshold windows
+      3) sampling inside each cluster every K windows (NOT 1 per cluster)
+      4) optional refractory on event times (min_distance_sec)
 
+    Returns: list of (t_start, t_end) intervals in seconds (timestamps units).
+    """
+
+    # --- sanitize inputs ---
     p = np.asarray(probs).reshape(-1).astype(np.float64)
     ws = np.asarray(window_starts, dtype=np.int64)
 
@@ -66,6 +264,7 @@ def extract_detected_times_clustermax(
     p = p[:n]
     ws = ws[:n]
 
+    # --- threshold mask ---
     keep_mask = (p >= float(threshold))
     idxs = np.flatnonzero(keep_mask)
     # An prob < threshold την πετάει
@@ -130,6 +329,8 @@ def extract_detected_times_clustermax(
         print(f"[DEBUG] threshold={threshold} | clusters={len(clusters)} | kept={len(keep)} | K={K} | min_distance_sec={min_distance_sec}")
 
     return detected_intervals
+
+
 
     #     {
     #     "f1_score": f1,
