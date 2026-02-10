@@ -3,15 +3,12 @@ from scipy.signal import firwin, lfilter
 from sklearn.preprocessing import StandardScaler
 
 
-# ---------------------------
-# 1) Filters only (NO scaling, NO windowing)
-# ---------------------------
 def apply_filters(acc_data, l_ma=25, f_c=1.0, l_hp=513, fs=100):
 
     data = np.asarray(acc_data, dtype=np.float32).copy()
 
-    # Axis invert (όπως είχες)
-    data[:, 0] *= -1.0
+    # Axis invert 
+#    data[:, 0] *= -1.0
 
     # Moving average smoothing (same length)
     kernel = np.ones(l_ma, dtype=np.float32) / np.float32(l_ma)
@@ -33,11 +30,13 @@ def apply_filters(acc_data, l_ma=25, f_c=1.0, l_hp=513, fs=100):
     return low_filtered, high_filtered
 
 
-# 2) Labeling (paper-style window_end within ±epsilon of bite_end)
 
-def extract_y(timestamps_eff, window_size, bite_intervals, window_starts,
-              epsilon=0.6):
-
+def extract_y_old(timestamps_eff, window_size, bite_intervals, window_starts,
+              epsilon=0.2):
+    """
+    positive if window END is within ±epsilon of a BITE END.
+    timestamps_eff: timestamps after delay correction.
+    """
     n_windows = len(window_starts)
     y = np.zeros(n_windows, dtype=int)
 
@@ -54,12 +53,46 @@ def extract_y(timestamps_eff, window_size, bite_intervals, window_starts,
 
     return y
 
+def extract_y( timestamps_eff,window_size,bite_intervals,window_starts,mode="fic",epsilon=0.2):
+    """
+      - "fic"      : intervals = bite intervals → y ∈ {0,1}
+      - "freefic"  : intervals = meal intervals → y ∈ {0,-1}
+    """
+
+    y = []
+
+    for s in window_starts:
+        t_end = timestamps_eff[s + window_size - 1]
+
+        if mode == "freefic":
+            # μέσα σε meal → N/A
+            inside_meal = np.any(
+                (t_end >= bite_intervals[:, 0]) &
+                (t_end <= bite_intervals[:, 1])
+            )
+            if inside_meal:
+                y.append(-1)   # N/A
+            else:
+                y.append(0)    # σίγουρα non-meal
+            continue
+
+        # mode == "fic"
+        if bite_intervals.size == 0:
+            y.append(0)
+        else:
+            bite_ends = bite_intervals[:, 1]
+            is_pos = np.any(np.abs(t_end - bite_ends) <= epsilon)
+            y.append(1 if is_pos else 0)
+
+    return np.asarray(y, dtype=int)
+
+
 
 def preprocess_acc_data(acc_data, timestamps, bite_intervals,
-                        window_size=500, stride=250,
+                        window_size=500, stride=20,
                         scaler_params=None,
-                        epsilon=1,
-                        l_ma=25, f_c=1.0, l_hp=513, fs=100):
+                        epsilon=0.625,
+                        l_ma=25, f_c=1.0, l_hp=513, fs=100,label_mode = 'fic'):
 
 
     acc_data = np.asarray(acc_data, dtype=np.float32)
@@ -88,7 +121,7 @@ def preprocess_acc_data(acc_data, timestamps, bite_intervals,
 
     acc_scaled = np.concatenate([acc_low, acc_high], axis=1).astype(np.float32)  # (N,6)
 
-    #  Windowing
+    # 3) Windowing
     X = []
     window_starts = []
     n = len(acc_scaled)
@@ -101,16 +134,18 @@ def preprocess_acc_data(acc_data, timestamps, bite_intervals,
 
     X = np.stack(X, axis=0).astype(np.float32)
 
-    #  Delay correction (FIR linear-phase approx group delay)
+    # 4) Delay correction
     delay_samples = (l_hp - 1) // 2
     timestamps_eff = timestamps - np.float32(delay_samples / fs)
 
+    # 5) Labels
     y = extract_y(
         timestamps_eff=timestamps_eff,
         window_size=window_size,
         bite_intervals=bite_intervals,
         window_starts=window_starts,
-        epsilon=epsilon
+        epsilon=epsilon,
+        mode=label_mode
     ).astype(int)
 
     return X, y, window_starts
